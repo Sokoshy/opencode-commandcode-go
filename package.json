@@ -1,8 +1,12 @@
 {
-  "name": "commandcode-go-poc",
-  "private": true,
+  "name": "opencode-commandcode-go",
+  "version": "0.1.0",
+  "description": "Unofficial OpenCode provider for Command Code's Go plan, with an in-process OpenAI-compatible bridge.",
   "type": "module",
   "exports": {
     ".": "./plugin.ts"
+  },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.7"
   }
 }
