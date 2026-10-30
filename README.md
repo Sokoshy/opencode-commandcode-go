@@ -1,43 +1,45 @@
-# Command Code Go dans OpenCode — provider + pont local
+# Command Code Go in OpenCode — provider + local bridge
 
-Ce dossier contient un PoC en deux pièces :
+**English** · [Français](README.fr.md)
+
+This repository contains a two-part proof of concept:
 
 ```text
 OpenCode 2.2.x
-  └── provider "commandcode-go"          (plugin.ts, catalogue copié de models.dev)
+  └── "commandcode-go" provider          (plugin.ts, catalog copied from models.dev)
         └── @opencode/ai/providers/openai-compatible
               └── http://127.0.0.1:<port>/v1/chat/completions
-                    └── pont démarré par le plugin
+                    └── bridge started by the plugin
                           └── POST https://api.commandcode.ai/alpha/generate
 ```
 
-- `plugin.ts` : ajoute le provider `commandcode-go`, copie les modèles du provider `commandcode` de `models.dev`, et démarre le pont **dans le processus OpenCode**.
-- `proxy.mjs` : le pont OpenAI ↔ `/alpha/generate`. Il est importé par le plugin ; il peut aussi être lancé seul pour déboguer.
-- `proxy.test.mjs` : tests des conversions et du flux, avec un faux serveur Command Code.
+- `plugin.ts`: adds the `commandcode-go` provider, copies the models from the `commandcode` provider in `models.dev`, and starts the bridge **inside the OpenCode process**.
+- `proxy.mjs`: the OpenAI ↔ `/alpha/generate` bridge. It is imported by the plugin and can also be started on its own for debugging.
+- `proxy.test.mjs`: tests for the conversions and the stream, against a fake Command Code server.
 
-Dépôt : <https://github.com/Sokoshy/opencode-commandcode-go>.
+Repository: <https://github.com/Sokoshy/opencode-commandcode-go>.
 
-## Avertissement
+## Warning
 
-Ce montage est **non officiel**. Le plan Go de Command Code n'inclut pas l'accès à la Provider API, `/alpha/generate` est le transport interne du CLI, et les conditions d'utilisation interdisent le reverse engineering et le transfert d'accès. Le pont ne contourne ni les quotas ni les droits du plan Go. À réserver à un usage local et expérimental ; ne pas distribuer.
+This setup is **unofficial**. Command Code's Go plan does not include Provider API access, `/alpha/generate` is the CLI's internal transport, and the terms of service prohibit reverse engineering and access sharing. The bridge bypasses neither quotas nor Go plan entitlements. Keep it local and experimental; do not distribute it.
 
-## Démarrage rapide — mode automatique
+## Quick start — automatic mode
 
-Tu n'as besoin que de ta clé API Command Code (la même que celle utilisée avec Pi). Pas de `proxy.mjs` à lancer, pas de token local à gérer.
+You only need your Command Code API key (the same one you use with Pi). There is no `proxy.mjs` to start and no local token to manage.
 
-### 1. Installer le plugin
+### 1. Install the plugin
 
-#### Avec `opencode plugin add` (recommandé)
+#### With `opencode plugin add` (recommended)
 
-Le dépôt GitHub s'installe directement :
+The GitHub repository installs directly:
 
 ```bash
 opencode plugin add github:Sokoshy/opencode-commandcode-go
 ```
 
-La commande installe le plugin et l'ajoute à la configuration **globale** (`~/.config/opencode/opencode.json`). Le mode automatique lit `CMD_API_KEY` : si la variable est exportée, il n'y a rien d'autre à configurer.
+The command installs the plugin and adds it to the **global** configuration (`~/.config/opencode/opencode.json` on Linux). Automatic mode reads `CMD_API_KEY`, so there is nothing else to configure when the variable is exported.
 
-Pour garder la clé dans la configuration plutôt que dans l'environnement, remplace l'entrée ajoutée par sa forme objet :
+To keep the key in the configuration instead of the environment, replace the added entry with its object form:
 
 ```jsonc
 {
@@ -53,47 +55,47 @@ Pour garder la clé dans la configuration plutôt que dans l'environnement, remp
 }
 ```
 
-`{env:CMD_API_KEY}` évite d'écrire la clé en clair dans le fichier. Tu peux aussi mettre la clé directement dans `apiKey`, ou ne pas mettre d'option et exporter `CMD_API_KEY` / `COMMAND_CODE_API_KEY` avant de lancer OpenCode.
+`{env:CMD_API_KEY}` keeps the key out of the file in plain text. You can also put the key directly in `apiKey`, or omit the option and export `CMD_API_KEY` / `COMMAND_CODE_API_KEY` before starting OpenCode.
 
-Mettre à jour ou désinstaller :
+Update or uninstall:
 
 ```bash
 opencode plugin update github:Sokoshy/opencode-commandcode-go
 opencode plugin remove github:Sokoshy/opencode-commandcode-go
 ```
 
-Après l'installation, relance OpenCode — ou `opencode service restart` si tu utilises le service d'arrière-plan — pour charger le plugin.
+After installing, restart OpenCode — or run `opencode service restart` if you use the background service — so the plugin loads.
 
-#### Depuis Git / GitHub, avec une révision précise
+#### From Git / GitHub at a specific revision
 
-`opencode plugin add` accepte les spécifications Git compatibles npm :
+`opencode plugin add` accepts npm-compatible Git specifiers:
 
 ```bash
-# branche
+# branch
 opencode plugin add 'github:Sokoshy/opencode-commandcode-go#main'
 
-# tag ou commit complet
-opencode plugin add 'github:Sokoshy/opencode-commandcode-go#<tag-ou-commit>'
+# tag or full commit
+opencode plugin add 'github:Sokoshy/opencode-commandcode-go#<tag-or-commit>'
 
 # HTTPS
 opencode plugin add 'git+https://github.com/Sokoshy/opencode-commandcode-go.git#main'
 
-# SSH (dépôt privé ou clé déjà configurée)
+# SSH (private repository or an already configured key)
 opencode plugin add 'git+ssh://git@github.com/Sokoshy/opencode-commandcode-go.git#main'
 ```
 
-Une branche ou un tag est revérifié par `opencode plugin update` ; un commit complet reste épinglé. Les mêmes spécifications peuvent être écrites à la main dans `plugins`.
+A branch or tag is re-checked by `opencode plugin update`; a full commit stays pinned. The same specifiers can be written by hand in `plugins`.
 
-#### Depuis un dossier local
+#### From a local directory
 
-`opencode plugin add` refuse les chemins locaux. Pour développer ou tester une copie locale, pointe directement vers le **dossier** dans `opencode.jsonc` :
+`opencode plugin add` rejects local paths. To develop or test a local copy, point directly at the **directory** in `opencode.jsonc`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "/chemin/absolu/vers/commandcode",
+      "package": "/absolute/path/to/commandcode",
       "options": {
         "apiKey": "{env:CMD_API_KEY}"
       }
@@ -102,96 +104,96 @@ Une branche ou un tag est revérifié par `opencode plugin update` ; un commit c
 }
 ```
 
-Le plugin importe `proxy.mjs` : pointe vers le **dossier complet**, pas seulement vers `plugin.ts`. Remplace `/chemin/absolu/vers/commandcode` par le chemin réel du dossier.
+The plugin imports `proxy.mjs`: point at the **whole directory**, not just `plugin.ts`. Replace `/absolute/path/to/commandcode` with the real path of the directory.
 
-### 2. Lancer OpenCode
+### 2. Start OpenCode
 
 ```bash
-export CMD_API_KEY='ta-clé-API-Command-Code'
+export CMD_API_KEY='your-Command-Code-API-key'
 opencode --standalone
 ```
 
-Le plugin démarre un pont local sur un port éphémère, génère un token local aléatoire, et configure le provider tout seul. Aucun autre processus à garder ouvert.
+The plugin starts a local bridge on an ephemeral port, generates a random local token, and configures the provider by itself. No other process needs to stay open.
 
-Vérification :
+Verification:
 
 ```bash
 opencode --standalone models | grep '^commandcode-go/'
 ```
 
-Attendu : `71` modèles avec le catalogue `models.dev` du 29/10/2026. Le nombre dépend du catalogue.
+Expected: `71` models with the `models.dev` catalog from 2026-10-29. The count depends on the catalog.
 
-Puis choisis un modèle `commandcode-go/*` dans le TUI, ou :
+Then pick a `commandcode-go/*` model in the TUI, or run:
 
 ```bash
 opencode --standalone run \
   -m commandcode-go/claude-haiku-4-5-20251001 \
-  "Réponds juste: ok"
+  "Answer with just: ok"
 ```
 
-Si le modèle n'est pas inclus dans le plan Go, l'erreur `403 upgrade_required` remonte dans OpenCode ; essaie un autre modèle.
+If the model is not included in the Go plan, the `403 upgrade_required` error surfaces in OpenCode; try another model.
 
-### Si OpenCode tourne en service d'arrière-plan
+### If OpenCode runs as a background service
 
-Le service doit voir `CMD_API_KEY`. Pour tester, `opencode --standalone` est le plus simple. Sinon :
+The service must see `CMD_API_KEY`. For testing, `opencode --standalone` is the simplest. Otherwise:
 
 ```bash
 opencode service stop
-export CMD_API_KEY='ta-clé-API-Command-Code'
+export CMD_API_KEY='your-Command-Code-API-key'
 opencode service start
 ```
 
-## Options du plugin
+## Plugin options
 
-| Option | Rôle |
+| Option | Purpose |
 |---|---|
-| `apiKey` | Ta clé API Command Code. Si absente, le plugin lit `CMD_API_KEY` puis `COMMAND_CODE_API_KEY`. |
-| `apiBase` | Base amont, par défaut `https://api.commandcode.ai`. Utile pour un mock. |
-| `url` | Force l'usage d'un pont **externe** au lieu du pont interne. |
-| `token` | Token du pont externe, utilisé seulement avec `url`. |
+| `apiKey` | Your Command Code API key. When absent, the plugin reads `CMD_API_KEY`, then `COMMAND_CODE_API_KEY`. |
+| `apiBase` | Upstream base URL, defaults to `https://api.commandcode.ai`. Useful for a mock. |
+| `url` | Forces the use of an **external** bridge instead of the internal one. |
+| `token` | External bridge token, used only with `url`. |
 
-## Mode manuel — pont séparé
+## Manual mode — separate bridge
 
-Utile pour déboguer ou si tu veux isoler le pont d'OpenCode.
+Useful for debugging or if you want to isolate the bridge from OpenCode.
 
 ```bash
-export CMD_API_KEY='ta-clé-API-Command-Code'
-export COMMANDCODE_GO_BRIDGE_TOKEN='un-secret-local-long'
+export CMD_API_KEY='your-Command-Code-API-key'
+export COMMANDCODE_GO_BRIDGE_TOKEN='a-long-local-secret'
 node proxy.mjs
 ```
 
-Puis dans `opencode.jsonc` :
+Then in `opencode.jsonc`:
 
 ```jsonc
 {
   "plugins": [
     {
-      "package": "/chemin/absolu/vers/commandcode",
+      "package": "/absolute/path/to/commandcode",
       "options": {
         "url": "http://127.0.0.1:8787/v1",
-        "token": "un-secret-local-long"
+        "token": "a-long-local-secret"
       }
     }
   ]
 }
 ```
 
-Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plugin.ts` ne démarre pas de pont interne.
+The plugin token and the bridge token must match. In this mode, `plugin.ts` does not start an internal bridge.
 
-## Variables du pont
+## Bridge environment variables
 
-| Variable | Défaut | Rôle |
+| Variable | Default | Purpose |
 |---|---|---|
-| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Clé Command Code. Lue par le plugin en mode automatique, et par `proxy.mjs` en mode manuel. |
-| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token du pont **externe** uniquement. |
-| `COMMANDCODE_GO_BRIDGE_URL` | — | Force un pont externe (équivalent à l'option `url`). |
-| `COMMANDCODE_GO_API_BASE` | `https://api.commandcode.ai` | Base amont, dans les deux modes. |
-| `COMMANDCODE_GO_HOST` | `127.0.0.1` | Écoute de `proxy.mjs` en mode manuel. |
-| `COMMANDCODE_GO_PORT` | `8787` | Port de `proxy.mjs` en mode manuel. Le pont interne utilise un port éphémère. |
-| `COMMANDCODE_GO_CLI_VERSION` | `1.88.0` | Header `x-command-code-version`. |
-| `COMMANDCODE_GO_MAX_TOKENS` | `64000` | Plafond de `max_tokens`. |
-| `COMMANDCODE_GO_TIMEOUT_MS` | `900000` | Timeout total de la requête amont. |
-| `COMMANDCODE_GO_WORKDIR` | `process.cwd()` | `config.workingDir` de secours. En usage normal, le plugin transmet le dossier de sa location (le projet). |
+| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Command Code key. Read by the plugin in automatic mode and by `proxy.mjs` in manual mode. |
+| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token for the **external** bridge only. |
+| `COMMANDCODE_GO_BRIDGE_URL` | — | Forces an external bridge (equivalent to the `url` option). |
+| `COMMANDCODE_GO_API_BASE` | `https://api.commandcode.ai` | Upstream base URL, in both modes. |
+| `COMMANDCODE_GO_HOST` | `127.0.0.1` | Listen address for `proxy.mjs` in manual mode. |
+| `COMMANDCODE_GO_PORT` | `8787` | Port for `proxy.mjs` in manual mode. The internal bridge uses an ephemeral port. |
+| `COMMANDCODE_GO_CLI_VERSION` | `1.88.0` | `x-command-code-version` header. |
+| `COMMANDCODE_GO_MAX_TOKENS` | `64000` | `max_tokens` cap. |
+| `COMMANDCODE_GO_TIMEOUT_MS` | `900000` | Total timeout for the upstream request. |
+| `COMMANDCODE_GO_WORKDIR` | `process.cwd()` | Fallback `config.workingDir`. In normal use, the plugin passes the directory of its location (the project). |
 
 ## Tests
 
@@ -199,42 +201,43 @@ Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plu
 node --test proxy.test.mjs
 ```
 
-Les tests couvrent :
+The tests cover:
 
-- conversion système / utilisateur / assistant / outils / résultats d'outils ;
-- synthèse d'un résultat manquant pour un appel d'outil interrompu ;
-- troncature déterministe des identifiants d'outils à 64 caractères ;
-- images en data URL ;
-- flux SSE complet avec texte, raisonnement, appel d'outil, `finish_reason` et usage ;
-- rejet sans token local.
+- system / user / assistant / tool / tool-result conversion;
+- synthesis of a missing result for an interrupted tool call;
+- deterministic truncation of tool identifiers to 64 characters;
+- images as data URLs;
+- a full SSE stream with text, reasoning, a tool call, `finish_reason`, and usage;
+- rejection without a local token.
 
-Le mode automatique a été validé de bout en bout avec un faux serveur `/alpha/generate` : OpenCode 2.2.x → plugin → pont interne → SSE. Aucun test avec une vraie clé Go n'a été fait dans ce dépôt.
+Automatic mode was validated end to end against a fake `/alpha/generate` server: OpenCode 2.2.x → plugin → internal bridge → SSE. No test with a real Go key has been done in this repository.
 
-## Limites connues
+## Known limitations
 
-- **Tous** les modèles du catalogue `commandcode` sont copiés, y compris ceux que le plan Go ne couvre pas. Une erreur `403 upgrade_required` remonte alors dans OpenCode. Il n'existe pas de liste publique des modèles Go.
-- Le pont ne gère que `stream: true`.
-- Les images doivent être des data URLs `data:<mime>;base64,...`. Les URLs HTTP ne sont pas récupérées.
-- Le raisonnement est transmis en `reasoning_content` ; les variantes de raisonnement propres à Anthropic sont supprimées de la copie du catalogue.
-- `threadId` est dérivé de la session OpenCode (`x-opencode-session`) pour garder un fil stable. Sans session, un UUID aléatoire est généré par requête.
-- Le header `x-command-code-version` est épinglé. Un changement du CLI peut casser le pont ; il n'y a pas de SLA.
-- En mode automatique, la clé API est détenue par le processus OpenCode. Préfère `{env:CMD_API_KEY}` à une clé écrite en clair dans `opencode.jsonc`.
-- Le pont interne écoute uniquement sur `127.0.0.1`, avec un token aléatoire par processus.
-- La génération de titre d'OpenCode peut choisir un autre modèle du provider (observé : `gpt-6-luna`) ; si ce modèle n'est pas inclus dans Go, seule la génération de titre échoue.
+- **Every** model in the `commandcode` catalog is copied, including those the Go plan does not cover. A `403 upgrade_required` error then surfaces in OpenCode. There is no public list of Go models.
+- The bridge only handles `stream: true`.
+- Images must be `data:<mime>;base64,...` data URLs. HTTP URLs are not fetched.
+- Reasoning is forwarded as `reasoning_content`; Anthropic-specific reasoning variants are removed from the catalog copy.
+- `threadId` is derived from the OpenCode session (`x-opencode-session`) to keep a stable thread. Without a session, a random UUID is generated per request.
+- The `x-command-code-version` header is pinned. A CLI change can break the bridge; there is no SLA.
+- In automatic mode, the API key is held by the OpenCode process. Prefer `{env:CMD_API_KEY}` over a key written in plain text in `opencode.jsonc`.
+- The internal bridge listens only on `127.0.0.1`, with a random token per process.
+- OpenCode's title generation may pick another model from the provider (observed: `gpt-6-luna`); if that model is not included in Go, only title generation fails.
 
-## Dépannage
+## Troubleshooting
 
-- `commandcode-go` absent de `opencode models` : la clé API manque, le plugin n'est pas chargé, ou le catalogue `commandcode` n'est pas encore disponible.
-- `401 Invalid bridge token` : uniquement en mode manuel ; le token du plugin et celui du pont diffèrent.
-- `403 upgrade_required` : le modèle n'est pas inclus dans le plan Go.
-- `502` : le pont n'arrive pas à joindre Command Code, ou l'endpoint a changé.
-- `Command Code stream ended before the finish event` : flux amont tronqué ou version CLI incompatible.
-- En cas de doute, lance `opencode --standalone --print-logs models` et cherche `[commandcode-go]`.
+- `commandcode-go` missing from `opencode models`: the API key is missing, the plugin is not loaded, or the `commandcode` catalog is not available yet.
+- `401 Invalid bridge token`: manual mode only; the plugin token and the bridge token differ.
+- `403 upgrade_required`: the model is not included in the Go plan.
+- `502`: the bridge cannot reach Command Code, or the endpoint changed.
+- `Command Code stream ended before the finish event`: truncated upstream stream or incompatible CLI version.
+- When in doubt, run `opencode --standalone --print-logs models` and look for `[commandcode-go]`.
 
-## Fichiers
+## Files
 
-- `plugin.ts` — provider OpenCode + démarrage du pont interne.
-- `proxy.mjs` — pont OpenAI ↔ `/alpha/generate`, importable ou lançable seul.
+- `plugin.ts` — OpenCode provider + internal bridge startup.
+- `proxy.mjs` — OpenAI ↔ `/alpha/generate` bridge, importable or runnable on its own.
 - `proxy.test.mjs` — tests.
-- `package.json` — point d'entrée et métadonnées pour les installations `opencode plugin add`, Git ou par dossier.
-- `ETUDE-FAISABILITE-COMMANDCODE-OPENCODE.md` — étude complète et avertissements contractuels.
+- `package.json` — entry point and metadata for `opencode plugin add`, Git, or directory installs.
+- `ETUDE-FAISABILITE-COMMANDCODE-OPENCODE.md` — full feasibility study and contractual warnings (in French).
+- `README.fr.md` — French version of this document.
