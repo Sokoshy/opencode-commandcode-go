@@ -6,7 +6,7 @@
 **Périmètre** : code source réel, documentation officielle Command Code, OpenCode v2.2.0, catalogue `models.dev`.  
 **Hors périmètre** : conseil juridique, test live avec la clé Go de l'utilisateur, développement du plugin.
 
-> **Mise à jour (30/10/2026)** : le PoC `plugin.ts` implémente cette architecture et démarre le pont **dans le processus OpenCode**. Le pont séparé `proxy.mjs` reste disponible pour le débogage. Voir `README-COMMANDCODE-GO.md`.
+> **Mise à jour (30/10/2026)** : le PoC `plugin.ts` implémente cette architecture et démarre le pont **dans le processus OpenCode**. Le pont séparé `proxy.mjs` reste disponible pour le débogage. Voir `README.md`.
 
 ## 0. Lecture rapide
 

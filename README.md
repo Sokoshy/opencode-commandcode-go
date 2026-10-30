@@ -32,7 +32,7 @@ Dans `opencode.jsonc`, pointe vers le **dossier** du plugin :
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "/home/sokoslay/Documents/Projects/Opencode/Plugins/commandcode",
+      "package": "/chemin/absolu/vers/commandcode",
       "options": {
         "apiKey": "{env:CMD_API_KEY}"
       }
@@ -43,7 +43,7 @@ Dans `opencode.jsonc`, pointe vers le **dossier** du plugin :
 
 `{env:CMD_API_KEY}` évite d'écrire la clé en clair dans le fichier. Tu peux aussi mettre la clé directement dans `apiKey`, ou ne pas mettre d'option et exporter `CMD_API_KEY` / `COMMAND_CODE_API_KEY` avant de lancer OpenCode.
 
-Le plugin importe `proxy.mjs` : pointe vers le **dossier complet**, pas seulement vers `plugin.ts`.
+Le plugin importe `proxy.mjs` : pointe vers le **dossier complet**, pas seulement vers `plugin.ts`. Remplace `/chemin/absolu/vers/commandcode` par le chemin réel du dossier.
 
 ### 2. Lancer OpenCode
 
@@ -107,7 +107,7 @@ Puis dans `opencode.jsonc` :
 {
   "plugins": [
     {
-      "package": "/home/sokoslay/Documents/Projects/Opencode/Plugins/commandcode",
+      "package": "/chemin/absolu/vers/commandcode",
       "options": {
         "url": "http://127.0.0.1:8787/v1",
         "token": "un-secret-local-long"
