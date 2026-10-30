@@ -15,6 +15,8 @@ OpenCode 2.2.x
 - `proxy.mjs` : le pont OpenAI ↔ `/alpha/generate`. Il est importé par le plugin ; il peut aussi être lancé seul pour déboguer.
 - `proxy.test.mjs` : tests des conversions et du flux, avec un faux serveur Command Code.
 
+Dépôt : <https://github.com/Sokoshy/opencode-commandcode-go>.
+
 ## Avertissement
 
 Ce montage est **non officiel**. Le plan Go de Command Code n'inclut pas l'accès à la Provider API, `/alpha/generate` est le transport interne du CLI, et les conditions d'utilisation interdisent le reverse engineering et le transfert d'accès. Le pont ne contourne ni les quotas ni les droits du plan Go. À réserver à un usage local et expérimental ; ne pas distribuer.
@@ -23,9 +25,68 @@ Ce montage est **non officiel**. Le plan Go de Command Code n'inclut pas l'accè
 
 Tu n'as besoin que de ta clé API Command Code (la même que celle utilisée avec Pi). Pas de `proxy.mjs` à lancer, pas de token local à gérer.
 
-### 1. Configurer OpenCode
+### 1. Installer le plugin
 
-Dans `opencode.jsonc`, pointe vers le **dossier** du plugin :
+#### Avec `opencode plugin add` (recommandé)
+
+Le dépôt GitHub s'installe directement :
+
+```bash
+opencode plugin add github:Sokoshy/opencode-commandcode-go
+```
+
+La commande installe le plugin et l'ajoute à la configuration **globale** (`~/.config/opencode/opencode.json`). Le mode automatique lit `CMD_API_KEY` : si la variable est exportée, il n'y a rien d'autre à configurer.
+
+Pour garder la clé dans la configuration plutôt que dans l'environnement, remplace l'entrée ajoutée par sa forme objet :
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "github:Sokoshy/opencode-commandcode-go",
+      "options": {
+        "apiKey": "{env:CMD_API_KEY}"
+      }
+    }
+  ]
+}
+```
+
+`{env:CMD_API_KEY}` évite d'écrire la clé en clair dans le fichier. Tu peux aussi mettre la clé directement dans `apiKey`, ou ne pas mettre d'option et exporter `CMD_API_KEY` / `COMMAND_CODE_API_KEY` avant de lancer OpenCode.
+
+Mettre à jour ou désinstaller :
+
+```bash
+opencode plugin update github:Sokoshy/opencode-commandcode-go
+opencode plugin remove github:Sokoshy/opencode-commandcode-go
+```
+
+Après l'installation, relance OpenCode — ou `opencode service restart` si tu utilises le service d'arrière-plan — pour charger le plugin.
+
+#### Depuis Git / GitHub, avec une révision précise
+
+`opencode plugin add` accepte les spécifications Git compatibles npm :
+
+```bash
+# branche
+opencode plugin add 'github:Sokoshy/opencode-commandcode-go#main'
+
+# tag ou commit complet
+opencode plugin add 'github:Sokoshy/opencode-commandcode-go#<tag-ou-commit>'
+
+# HTTPS
+opencode plugin add 'git+https://github.com/Sokoshy/opencode-commandcode-go.git#main'
+
+# SSH (dépôt privé ou clé déjà configurée)
+opencode plugin add 'git+ssh://git@github.com/Sokoshy/opencode-commandcode-go.git#main'
+```
+
+Une branche ou un tag est revérifié par `opencode plugin update` ; un commit complet reste épinglé. Les mêmes spécifications peuvent être écrites à la main dans `plugins`.
+
+#### Depuis un dossier local
+
+`opencode plugin add` refuse les chemins locaux. Pour développer ou tester une copie locale, pointe directement vers le **dossier** dans `opencode.jsonc` :
 
 ```jsonc
 {
@@ -40,8 +101,6 @@ Dans `opencode.jsonc`, pointe vers le **dossier** du plugin :
   ]
 }
 ```
-
-`{env:CMD_API_KEY}` évite d'écrire la clé en clair dans le fichier. Tu peux aussi mettre la clé directement dans `apiKey`, ou ne pas mettre d'option et exporter `CMD_API_KEY` / `COMMAND_CODE_API_KEY` avant de lancer OpenCode.
 
 Le plugin importe `proxy.mjs` : pointe vers le **dossier complet**, pas seulement vers `plugin.ts`. Remplace `/chemin/absolu/vers/commandcode` par le chemin réel du dossier.
 
@@ -177,5 +236,5 @@ Le mode automatique a été validé de bout en bout avec un faux serveur `/alpha
 - `plugin.ts` — provider OpenCode + démarrage du pont interne.
 - `proxy.mjs` — pont OpenAI ↔ `/alpha/generate`, importable ou lançable seul.
 - `proxy.test.mjs` — tests.
-- `package.json` — point d'entrée du plugin quand OpenCode le charge par dossier.
+- `package.json` — point d'entrée et métadonnées pour les installations `opencode plugin add`, Git ou par dossier.
 - `ETUDE-FAISABILITE-COMMANDCODE-OPENCODE.md` — étude complète et avertissements contractuels.
