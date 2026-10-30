@@ -1,0 +1,8 @@
+{
+  "name": "commandcode-go-poc",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./plugin.ts"
+  }
+}
