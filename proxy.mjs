@@ -4,7 +4,9 @@
  * Experimental. Command Code's Go plan has no documented API access and
  * /alpha/generate is the CLI transport, not a public contract.
  *
- * Run: CMD_API_KEY=... COMMANDCODE_GO_BRIDGE_TOKEN=... node proxy.mjs
+ * Run: COMMANDCODE_GO_BRIDGE_TOKEN=... node proxy.mjs
+ * The Command Code key is forwarded from the incoming Authorization header,
+ * so the bridge process does not need CMD_API_KEY unless it is called directly.
  */
 
 import crypto from "node:crypto"
@@ -404,14 +406,32 @@ async function readJson(request, limit) {
   }
 }
 
+function secretEquals(a, b) {
+  const left = crypto.createHash("sha256").update(a).digest()
+  const right = crypto.createHash("sha256").update(b).digest()
+  return crypto.timingSafeEqual(left, right)
+}
+
 function authorized(request, token) {
   const header = request.headers.authorization ?? ""
   if (!header.startsWith("Bearer ")) return false
   const supplied = header.slice(7).trim()
   if (!supplied) return false
-  const a = crypto.createHash("sha256").update(supplied).digest()
-  const b = crypto.createHash("sha256").update(token).digest()
-  return crypto.timingSafeEqual(a, b)
+  return secretEquals(supplied, token)
+}
+
+function hasBridgeToken(request, config) {
+  const header = request.headers["x-bridge-token"]
+  if (typeof header === "string" && header) return secretEquals(header, config.bridgeToken)
+  // Legacy manual mode: the bridge token itself is sent as the bearer token.
+  return authorized(request, config.bridgeToken)
+}
+
+function requestKey(request, config) {
+  const header = request.headers.authorization ?? ""
+  const supplied = header.startsWith("Bearer ") ? header.slice(7).trim() : ""
+  if (supplied && !secretEquals(supplied, config.bridgeToken)) return supplied
+  return config.apiKey
 }
 
 function upstreamError(status, text) {
@@ -601,12 +621,17 @@ async function handleChat(request, response, config) {
     sendOpenAIError(response, 500, "COMMANDCODE_GO_BRIDGE_TOKEN is not set on the bridge")
     return
   }
-  if (!authorized(request, config.bridgeToken)) {
+  if (!hasBridgeToken(request, config)) {
     sendOpenAIError(response, 401, "Invalid bridge token")
     return
   }
-  if (!config.apiKey) {
-    sendOpenAIError(response, 500, "CMD_API_KEY is not set on the bridge")
+  const apiKey = requestKey(request, config)
+  if (!apiKey) {
+    sendOpenAIError(
+      response,
+      401,
+      "No Command Code API key: connect Command Code Go in OpenCode or set CMD_API_KEY on the bridge",
+    )
     return
   }
 
@@ -663,7 +688,7 @@ async function handleChat(request, response, config) {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${config.apiKey}`,
+        authorization: `Bearer ${apiKey}`,
         "x-command-code-version": config.cliVersion,
         "x-cli-environment": "production",
         "x-project-slug": projectSlug(workingDir),
@@ -740,10 +765,6 @@ function main() {
   const config = configFromEnv()
   if (!config.bridgeToken) {
     console.error("COMMANDCODE_GO_BRIDGE_TOKEN is required (same value in OpenCode and the bridge).")
-    process.exit(1)
-  }
-  if (!config.apiKey) {
-    console.error("CMD_API_KEY (or COMMAND_CODE_API_KEY) is required by the bridge.")
     process.exit(1)
   }
   const server = createServer(config)

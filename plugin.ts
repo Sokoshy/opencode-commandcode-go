@@ -1,9 +1,9 @@
 /**
  * Adds an unofficial "commandcode-go" provider to OpenCode.
  *
- * By default it starts the local bridge in-process, copies the models.dev
- * Command Code catalog, and points every model at that bridge. Set `url` to
- * use an external proxy (see proxy.mjs) instead.
+ * The provider is backed by an in-process bridge and authenticates through
+ * OpenCode's normal /connect flow. Set `url` to use an external proxy
+ * (see proxy.mjs) instead.
  */
 
 import crypto from "node:crypto"
@@ -12,6 +12,7 @@ import { configFromEnv, createServer } from "./proxy.mjs"
 
 const SOURCE_ID = "commandcode"
 const PROVIDER_ID = "commandcode-go"
+const PROVIDER_NAME = "Command Code Go"
 
 function option(ctx, key) {
   const value = ctx.options?.[key]
@@ -25,9 +26,8 @@ function trimURL(value) {
 let bridge
 let starting
 
-async function startBridge(ctx, apiKey, apiBase) {
+async function startBridge(ctx, apiBase) {
   const config = configFromEnv()
-  config.apiKey = apiKey
   config.bridgeToken = crypto.randomBytes(32).toString("hex")
   config.host = "127.0.0.1"
   config.port = 0
@@ -57,14 +57,14 @@ async function startBridge(ctx, apiKey, apiBase) {
   }
 }
 
-async function getBridge(ctx, apiKey) {
+async function getBridge(ctx) {
   const apiBase = trimURL(
     option(ctx, "apiBase") ||
       process.env.COMMANDCODE_GO_API_BASE ||
       configFromEnv().apiBase,
   )
 
-  if (bridge && bridge.apiKey === apiKey && bridge.apiBase === apiBase) return bridge
+  if (bridge && bridge.apiBase === apiBase) return bridge
   if (starting) return starting
 
   starting = (async () => {
@@ -73,8 +73,8 @@ async function getBridge(ctx, apiKey) {
       bridge.server.closeAllConnections?.()
       bridge = undefined
     }
-    const started = await startBridge(ctx, apiKey, apiBase)
-    bridge = { ...started, apiKey, apiBase }
+    const started = await startBridge(ctx, apiBase)
+    bridge = { ...started, apiBase }
     return bridge
   })().finally(() => {
     starting = undefined
@@ -101,18 +101,8 @@ export default Plugin.define({
       }
       baseURL = externalURL
     } else {
-      const apiKey =
-        option(ctx, "apiKey") ||
-        process.env.CMD_API_KEY ||
-        process.env.COMMAND_CODE_API_KEY
-
-      if (!apiKey) {
-        console.warn("[commandcode-go] set options.apiKey or CMD_API_KEY; provider disabled")
-        return
-      }
-
       try {
-        const localBridge = await getBridge(ctx, apiKey)
+        const localBridge = await getBridge(ctx)
         baseURL = localBridge.url
         token = localBridge.token
         console.log(`[commandcode-go] local bridge on ${baseURL}`)
@@ -122,6 +112,22 @@ export default Plugin.define({
         return
       }
     }
+
+    // Register the provider account before adding the provider so /connect can
+    // store the Command Code key as a normal OpenCode credential.
+    await ctx.integration.transform((editor) => {
+      editor.update(PROVIDER_ID, (integration) => {
+        integration.name = PROVIDER_NAME
+      })
+      editor.method.update({
+        integrationID: PROVIDER_ID,
+        method: { type: "key", label: "Manually enter API Key" },
+      })
+      editor.method.update({
+        integrationID: PROVIDER_ID,
+        method: { type: "env", names: ["CMD_API_KEY", "COMMAND_CODE_API_KEY"] },
+      })
+    })
 
     let added = false
     await ctx.provider.transform((editor) => {
@@ -169,13 +175,16 @@ export default Plugin.define({
       editor.add({
         info: {
           id: PROVIDER_ID,
-          name: "Command Code Go (unofficial bridge)",
+          name: PROVIDER_NAME,
           activation: "enabled",
+          integrationID: PROVIDER_ID,
           package: "@opencode/ai/providers/openai-compatible",
           settings: {
             baseURL,
-            apiKey: token,
             provider: PROVIDER_ID,
+          },
+          headers: {
+            "x-bridge-token": token,
           },
         },
         models,

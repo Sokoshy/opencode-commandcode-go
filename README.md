@@ -25,7 +25,7 @@ This setup is **unofficial**. Command Code's Go plan does not include Provider A
 
 ## Quick start — automatic mode
 
-You only need your Command Code API key (the same one you use with Pi). There is no `proxy.mjs` to start and no local token to manage.
+You only need your Command Code API key (the same one you use with Pi). No proxy to start and no key in the configuration: OpenCode asks for it through `/connect`.
 
 ### 1. Install the plugin
 
@@ -37,25 +37,16 @@ The GitHub repository installs directly:
 opencode plugin add github:Sokoshy/opencode-commandcode-go
 ```
 
-The command installs the plugin and adds it to the **global** configuration (`~/.config/opencode/opencode.json` on Linux). Automatic mode reads `CMD_API_KEY`, so there is nothing else to configure when the variable is exported.
-
-To keep the key in the configuration instead of the environment, replace the added entry with its object form:
+The command installs the plugin and adds it to the **global** configuration (`~/.config/opencode/opencode.json` on Linux). The entry is just the package string; no options are required:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    {
-      "package": "github:Sokoshy/opencode-commandcode-go",
-      "options": {
-        "apiKey": "{env:CMD_API_KEY}"
-      }
-    }
+    "github:Sokoshy/opencode-commandcode-go"
   ]
 }
 ```
-
-`{env:CMD_API_KEY}` keeps the key out of the file in plain text. You can also put the key directly in `apiKey`, or omit the option and export `CMD_API_KEY` / `COMMAND_CODE_API_KEY` before starting OpenCode.
 
 Update or uninstall:
 
@@ -94,26 +85,40 @@ A branch or tag is re-checked by `opencode plugin update`; a full commit stays p
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    {
-      "package": "/absolute/path/to/commandcode",
-      "options": {
-        "apiKey": "{env:CMD_API_KEY}"
-      }
-    }
+    "/absolute/path/to/commandcode"
   ]
 }
 ```
 
 The plugin imports `proxy.mjs`: point at the **whole directory**, not just `plugin.ts`. Replace `/absolute/path/to/commandcode` with the real path of the directory.
 
-### 2. Start OpenCode
+### 2. Connect Command Code Go
+
+Start OpenCode:
 
 ```bash
-export CMD_API_KEY='your-Command-Code-API-key'
 opencode --standalone
 ```
 
-The plugin starts a local bridge on an ephemeral port, generates a random local token, and configures the provider by itself. No other process needs to stay open.
+The plugin starts a local bridge on an ephemeral port and registers the **Command Code Go** provider. Connect it like any other provider:
+
+```text
+/connect
+# Select Command Code Go, then paste your Command Code API key.
+/models
+# Select a commandcode-go/* model.
+```
+
+Or use the CLI:
+
+```bash
+opencode auth login commandcode-go --method key
+opencode run \
+  -m commandcode-go/claude-haiku-4-5-20251001 \
+  "Answer with just: ok"
+```
+
+The key is stored in OpenCode's credential store. It is not written to `opencode.jsonc` and does not need to be exported in the environment.
 
 Verification:
 
@@ -123,19 +128,11 @@ opencode --standalone models | grep '^commandcode-go/'
 
 Expected: `71` models with the `models.dev` catalog from 2026-10-29. The count depends on the catalog.
 
-Then pick a `commandcode-go/*` model in the TUI, or run:
-
-```bash
-opencode --standalone run \
-  -m commandcode-go/claude-haiku-4-5-20251001 \
-  "Answer with just: ok"
-```
-
 If the model is not included in the Go plan, the `403 upgrade_required` error surfaces in OpenCode; try another model.
 
 ### If OpenCode runs as a background service
 
-The service must see `CMD_API_KEY`. For testing, `opencode --standalone` is the simplest. Otherwise:
+`/connect` works through the background service; the key is stored in its database. If you prefer the environment method instead, the service must see the variable:
 
 ```bash
 opencode service stop
@@ -145,9 +142,10 @@ opencode service start
 
 ## Plugin options
 
+No option is required. These exist for debugging and for the manual bridge:
+
 | Option | Purpose |
 |---|---|
-| `apiKey` | Your Command Code API key. When absent, the plugin reads `CMD_API_KEY`, then `COMMAND_CODE_API_KEY`. |
 | `apiBase` | Upstream base URL, defaults to `https://api.commandcode.ai`. Useful for a mock. |
 | `url` | Forces the use of an **external** bridge instead of the internal one. |
 | `token` | External bridge token, used only with `url`. |
@@ -157,7 +155,6 @@ opencode service start
 Useful for debugging or if you want to isolate the bridge from OpenCode.
 
 ```bash
-export CMD_API_KEY='your-Command-Code-API-key'
 export COMMANDCODE_GO_BRIDGE_TOKEN='a-long-local-secret'
 node proxy.mjs
 ```
@@ -178,14 +175,14 @@ Then in `opencode.jsonc`:
 }
 ```
 
-The plugin token and the bridge token must match. In this mode, `plugin.ts` does not start an internal bridge.
+The plugin token and the bridge token must match. In this mode, `plugin.ts` does not start an internal bridge. The Command Code key still comes from `/connect`; set `CMD_API_KEY` on the bridge only when you call the bridge directly (curl, another client).
 
 ## Bridge environment variables
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Command Code key. Read by the plugin in automatic mode and by `proxy.mjs` in manual mode. |
-| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token for the **external** bridge only. |
+| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Fallback Command Code key for `proxy.mjs` when it is called directly. Normal requests carry the key from the `/connect` credential. |
+| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token for the **external** bridge only; must match the `token` option. |
 | `COMMANDCODE_GO_BRIDGE_URL` | — | Forces an external bridge (equivalent to the `url` option). |
 | `COMMANDCODE_GO_API_BASE` | `https://api.commandcode.ai` | Upstream base URL, in both modes. |
 | `COMMANDCODE_GO_HOST` | `127.0.0.1` | Listen address for `proxy.mjs` in manual mode. |
@@ -208,9 +205,10 @@ The tests cover:
 - deterministic truncation of tool identifiers to 64 characters;
 - images as data URLs;
 - a full SSE stream with text, reasoning, a tool call, `finish_reason`, and usage;
-- rejection without a local token.
+- rejection when the bridge token is missing or wrong;
+- the legacy mode where the bridge token itself is sent as the bearer token.
 
-Automatic mode was validated end to end against a fake `/alpha/generate` server: OpenCode 2.2.x → plugin → internal bridge → SSE. No test with a real Go key has been done in this repository.
+Automatic mode was validated end to end against a fake `/alpha/generate` server: key stored through the `/connect` API → OpenCode 2.2.x → plugin → internal bridge → SSE, with the key forwarded upstream as `Authorization: Bearer`. No test with a real Go key has been done in this repository.
 
 ## Known limitations
 
@@ -220,13 +218,15 @@ Automatic mode was validated end to end against a fake `/alpha/generate` server:
 - Reasoning is forwarded as `reasoning_content`; Anthropic-specific reasoning variants are removed from the catalog copy.
 - `threadId` is derived from the OpenCode session (`x-opencode-session`) to keep a stable thread. Without a session, a random UUID is generated per request.
 - The `x-command-code-version` header is pinned. A CLI change can break the bridge; there is no SLA.
-- In automatic mode, the API key is held by the OpenCode process. Prefer `{env:CMD_API_KEY}` over a key written in plain text in `opencode.jsonc`.
-- The internal bridge listens only on `127.0.0.1`, with a random token per process.
+- In automatic mode, the API key is stored in OpenCode's credential store and sent by OpenCode to the internal bridge as a bearer token. The plugin entry in `opencode.jsonc` never contains the key.
+- The internal bridge listens only on `127.0.0.1`, gates every request on a random `x-bridge-token` generated per process, and forwards whatever bearer key OpenCode sends.
 - OpenCode's title generation may pick another model from the provider (observed: `gpt-6-luna`); if that model is not included in Go, only title generation fails.
 
 ## Troubleshooting
 
-- `commandcode-go` missing from `opencode models`: the API key is missing, the plugin is not loaded, or the `commandcode` catalog is not available yet.
+- `commandcode-go` missing from `opencode models`: the plugin is not loaded, or the `commandcode` catalog is not available yet. Restart OpenCode after installing.
+- `commandcode-go` missing from `/connect`: same causes; the provider is registered by the plugin, so check `opencode --standalone --print-logs models` for `[commandcode-go]`.
+- No Command Code API key: run `/connect`, select **Command Code Go**, and paste the key.
 - `401 Invalid bridge token`: manual mode only; the plugin token and the bridge token differ.
 - `403 upgrade_required`: the model is not included in the Go plan.
 - `502`: the bridge cannot reach Command Code, or the endpoint changed.

@@ -25,7 +25,7 @@ Ce montage est **non officiel**. Le plan Go de Command Code n'inclut pas l'accè
 
 ## Démarrage rapide — mode automatique
 
-Tu n'as besoin que de ta clé API Command Code (la même que celle utilisée avec Pi). Pas de `proxy.mjs` à lancer, pas de token local à gérer.
+Tu n'as besoin que de ta clé API Command Code (la même que celle utilisée avec Pi). Pas de `proxy.mjs` à lancer et pas de clé dans la configuration : OpenCode la demande via `/connect`.
 
 ### 1. Installer le plugin
 
@@ -37,25 +37,16 @@ Le dépôt GitHub s'installe directement :
 opencode plugin add github:Sokoshy/opencode-commandcode-go
 ```
 
-La commande installe le plugin et l'ajoute à la configuration **globale** (`~/.config/opencode/opencode.json`). Le mode automatique lit `CMD_API_KEY` : si la variable est exportée, il n'y a rien d'autre à configurer.
-
-Pour garder la clé dans la configuration plutôt que dans l'environnement, remplace l'entrée ajoutée par sa forme objet :
+La commande installe le plugin et l'ajoute à la configuration **globale** (`~/.config/opencode/opencode.json` sous Linux). L'entrée est juste la chaîne du paquet ; aucune option n'est nécessaire :
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    {
-      "package": "github:Sokoshy/opencode-commandcode-go",
-      "options": {
-        "apiKey": "{env:CMD_API_KEY}"
-      }
-    }
+    "github:Sokoshy/opencode-commandcode-go"
   ]
 }
 ```
-
-`{env:CMD_API_KEY}` évite d'écrire la clé en clair dans le fichier. Tu peux aussi mettre la clé directement dans `apiKey`, ou ne pas mettre d'option et exporter `CMD_API_KEY` / `COMMAND_CODE_API_KEY` avant de lancer OpenCode.
 
 Mettre à jour ou désinstaller :
 
@@ -94,26 +85,40 @@ Une branche ou un tag est revérifié par `opencode plugin update` ; un commit c
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    {
-      "package": "/chemin/absolu/vers/commandcode",
-      "options": {
-        "apiKey": "{env:CMD_API_KEY}"
-      }
-    }
+    "/chemin/absolu/vers/commandcode"
   ]
 }
 ```
 
 Le plugin importe `proxy.mjs` : pointe vers le **dossier complet**, pas seulement vers `plugin.ts`. Remplace `/chemin/absolu/vers/commandcode` par le chemin réel du dossier.
 
-### 2. Lancer OpenCode
+### 2. Connecter Command Code Go
+
+Lance OpenCode :
 
 ```bash
-export CMD_API_KEY='ta-clé-API-Command-Code'
 opencode --standalone
 ```
 
-Le plugin démarre un pont local sur un port éphémère, génère un token local aléatoire, et configure le provider tout seul. Aucun autre processus à garder ouvert.
+Le plugin démarre un pont local sur un port éphémère et enregistre le provider **Command Code Go**. Connecte-le comme n'importe quel provider :
+
+```text
+/connect
+# Choisis Command Code Go, puis colle ta clé API Command Code.
+/models
+# Choisis un modèle commandcode-go/*.
+```
+
+Ou en CLI :
+
+```bash
+opencode auth login commandcode-go --method key
+opencode run \
+  -m commandcode-go/claude-haiku-4-5-20251001 \
+  "Réponds juste: ok"
+```
+
+La clé est stockée dans le magasin d'identifiants d'OpenCode. Elle n'est pas écrite dans `opencode.jsonc` et n'a pas besoin d'être exportée dans l'environnement.
 
 Vérification :
 
@@ -123,19 +128,11 @@ opencode --standalone models | grep '^commandcode-go/'
 
 Attendu : `71` modèles avec le catalogue `models.dev` du 29/10/2026. Le nombre dépend du catalogue.
 
-Puis choisis un modèle `commandcode-go/*` dans le TUI, ou :
-
-```bash
-opencode --standalone run \
-  -m commandcode-go/claude-haiku-4-5-20251001 \
-  "Réponds juste: ok"
-```
-
 Si le modèle n'est pas inclus dans le plan Go, l'erreur `403 upgrade_required` remonte dans OpenCode ; essaie un autre modèle.
 
 ### Si OpenCode tourne en service d'arrière-plan
 
-Le service doit voir `CMD_API_KEY`. Pour tester, `opencode --standalone` est le plus simple. Sinon :
+`/connect` fonctionne via le service d'arrière-plan ; la clé est stockée dans sa base de données. Si tu préfères la méthode par variable d'environnement, le service doit voir la variable :
 
 ```bash
 opencode service stop
@@ -145,9 +142,10 @@ opencode service start
 
 ## Options du plugin
 
+Aucune option n'est requise. Celles-ci servent au débogage et au pont manuel :
+
 | Option | Rôle |
 |---|---|
-| `apiKey` | Ta clé API Command Code. Si absente, le plugin lit `CMD_API_KEY` puis `COMMAND_CODE_API_KEY`. |
 | `apiBase` | Base amont, par défaut `https://api.commandcode.ai`. Utile pour un mock. |
 | `url` | Force l'usage d'un pont **externe** au lieu du pont interne. |
 | `token` | Token du pont externe, utilisé seulement avec `url`. |
@@ -157,7 +155,6 @@ opencode service start
 Utile pour déboguer ou si tu veux isoler le pont d'OpenCode.
 
 ```bash
-export CMD_API_KEY='ta-clé-API-Command-Code'
 export COMMANDCODE_GO_BRIDGE_TOKEN='un-secret-local-long'
 node proxy.mjs
 ```
@@ -178,14 +175,14 @@ Puis dans `opencode.jsonc` :
 }
 ```
 
-Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plugin.ts` ne démarre pas de pont interne.
+Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plugin.ts` ne démarre pas de pont interne. La clé Command Code vient toujours de `/connect` ; mets `CMD_API_KEY` sur le pont seulement si tu l'appelles directement (curl, autre client).
 
 ## Variables du pont
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Clé Command Code. Lue par le plugin en mode automatique, et par `proxy.mjs` en mode manuel. |
-| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token du pont **externe** uniquement. |
+| `CMD_API_KEY` / `COMMAND_CODE_API_KEY` | — | Clé Command Code de secours pour `proxy.mjs` quand il est appelé directement. Les requêtes normales portent la clé du credential `/connect`. |
+| `COMMANDCODE_GO_BRIDGE_TOKEN` | — | Token du pont **externe** uniquement ; doit correspondre à l'option `token`. |
 | `COMMANDCODE_GO_BRIDGE_URL` | — | Force un pont externe (équivalent à l'option `url`). |
 | `COMMANDCODE_GO_API_BASE` | `https://api.commandcode.ai` | Base amont, dans les deux modes. |
 | `COMMANDCODE_GO_HOST` | `127.0.0.1` | Écoute de `proxy.mjs` en mode manuel. |
@@ -208,9 +205,10 @@ Les tests couvrent :
 - troncature déterministe des identifiants d'outils à 64 caractères ;
 - images en data URL ;
 - flux SSE complet avec texte, raisonnement, appel d'outil, `finish_reason` et usage ;
-- rejet sans token local.
+- rejet quand le token du pont manque ou est faux ;
+- le mode historique où le token du pont sert lui-même de bearer token.
 
-Le mode automatique a été validé de bout en bout avec un faux serveur `/alpha/generate` : OpenCode 2.2.x → plugin → pont interne → SSE. Aucun test avec une vraie clé Go n'a été fait dans ce dépôt.
+Le mode automatique a été validé de bout en bout avec un faux serveur `/alpha/generate` : clé stockée via l'API `/connect` → OpenCode 2.2.x → plugin → pont interne → SSE, avec la clé transmise en amont en `Authorization: Bearer`. Aucun test avec une vraie clé Go n'a été fait dans ce dépôt.
 
 ## Limites connues
 
@@ -220,13 +218,15 @@ Le mode automatique a été validé de bout en bout avec un faux serveur `/alpha
 - Le raisonnement est transmis en `reasoning_content` ; les variantes de raisonnement propres à Anthropic sont supprimées de la copie du catalogue.
 - `threadId` est dérivé de la session OpenCode (`x-opencode-session`) pour garder un fil stable. Sans session, un UUID aléatoire est généré par requête.
 - Le header `x-command-code-version` est épinglé. Un changement du CLI peut casser le pont ; il n'y a pas de SLA.
-- En mode automatique, la clé API est détenue par le processus OpenCode. Préfère `{env:CMD_API_KEY}` à une clé écrite en clair dans `opencode.jsonc`.
-- Le pont interne écoute uniquement sur `127.0.0.1`, avec un token aléatoire par processus.
+- En mode automatique, la clé API est stockée dans le magasin d'identifiants d'OpenCode et envoyée par OpenCode au pont interne comme bearer token. L'entrée du plugin dans `opencode.jsonc` ne contient jamais la clé.
+- Le pont interne écoute uniquement sur `127.0.0.1`, exige un header `x-bridge-token` aléatoire généré par processus, et relaie le bearer token qu'OpenCode lui envoie.
 - La génération de titre d'OpenCode peut choisir un autre modèle du provider (observé : `gpt-6-luna`) ; si ce modèle n'est pas inclus dans Go, seule la génération de titre échoue.
 
 ## Dépannage
 
-- `commandcode-go` absent de `opencode models` : la clé API manque, le plugin n'est pas chargé, ou le catalogue `commandcode` n'est pas encore disponible.
+- `commandcode-go` absent de `opencode models` : le plugin n'est pas chargé, ou le catalogue `commandcode` n'est pas encore disponible. Relance OpenCode après l'installation.
+- `commandcode-go` absent de `/connect` : mêmes causes ; le provider est enregistré par le plugin, vérifie `opencode --standalone --print-logs models` pour `[commandcode-go]`.
+- Aucune clé API Command Code : lance `/connect`, choisis **Command Code Go**, et colle la clé.
 - `401 Invalid bridge token` : uniquement en mode manuel ; le token du plugin et celui du pont diffèrent.
 - `403 upgrade_required` : le modèle n'est pas inclus dans le plan Go.
 - `502` : le pont n'arrive pas à joindre Command Code, ou l'endpoint a changé.

@@ -211,7 +211,8 @@ test("bridges an OpenAI stream to the generate endpoint", async (t) => {
   const response = await fetch(`http://127.0.0.1:${bridgePort}/v1/chat/completions`, {
     method: "POST",
     headers: {
-      authorization: "Bearer bridge-token",
+      authorization: "Bearer user-key",
+      "x-bridge-token": "bridge-token",
       "content-type": "application/json",
       "x-opencode-session": "ses_test",
       "x-opencode-directory": "/tmp/cc-go-test",
@@ -230,7 +231,7 @@ test("bridges an OpenAI stream to the generate endpoint", async (t) => {
 
   assert.equal(response.status, 200)
   const text = await response.text()
-  assert.equal(seen.headers.authorization, "Bearer cc-key")
+  assert.equal(seen.headers.authorization, "Bearer user-key")
   assert.equal(seen.headers["x-command-code-version"], "1.88.0")
   assert.equal(seen.body.config.workingDir, "/tmp/cc-go-test")
   assert.equal(seen.body.params.system, "rules")
@@ -263,4 +264,46 @@ test("rejects a request without the bridge token", async (t) => {
     body: JSON.stringify({ model: "m", messages: [] }),
   })
   assert.equal(response.status, 401)
+})
+
+test("uses the configured key when the bearer token is the bridge token", async (t) => {
+  let seen
+  const cc = http.createServer((request, response) => {
+    let raw = ""
+    request.on("data", (chunk) => (raw += chunk))
+    request.on("end", () => {
+      seen = { authorization: request.headers.authorization, body: JSON.parse(raw) }
+      response.writeHead(200, { "content-type": "text/event-stream" })
+      response.write(`data: ${JSON.stringify({ type: "text-delta", text: "legacy" })}\n\n`)
+      response.write(`data: ${JSON.stringify({ type: "finish", finishReason: "stop" })}\n\n`)
+      response.end()
+    })
+  })
+  const ccPort = await listen(cc)
+  t.after(() => cc.close())
+
+  const bridge = createServer({
+    apiKey: "cc-key",
+    bridgeToken: "bridge-token",
+    apiBase: `http://127.0.0.1:${ccPort}`,
+    cliVersion: "1.88.0",
+    maxTokens: 64_000,
+    timeoutMs: 5_000,
+    workdir: "/tmp",
+  })
+  const port = await listen(bridge)
+  t.after(() => bridge.close())
+
+  const response = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer bridge-token",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ model: "m", stream: true, messages: [{ role: "user", content: "hi" }] }),
+  })
+
+  assert.equal(response.status, 200)
+  await response.text()
+  assert.equal(seen.authorization, "Bearer cc-key")
 })
