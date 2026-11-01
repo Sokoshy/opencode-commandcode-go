@@ -28,6 +28,7 @@ let starting
 
 async function startBridge(ctx, apiBase) {
   const config = configFromEnv()
+  config.apiKey = option(ctx, "apiKey") || config.apiKey
   config.bridgeToken = crypto.randomBytes(32).toString("hex")
   config.host = "127.0.0.1"
   config.port = 0
@@ -65,9 +66,14 @@ async function getBridge(ctx) {
   )
 
   if (bridge && bridge.apiBase === apiBase) return bridge
-  if (starting) return starting
+  if (starting) {
+    if (starting.apiBase === apiBase) return starting.promise
+    // The failed start belongs to another base; swallow its error so this caller
+    // surfaces its own start failure, not the foreign one.
+    return starting.promise.catch(() => {}).then(() => getBridge(ctx))
+  }
 
-  starting = (async () => {
+  const promise = (async () => {
     if (bridge) {
       bridge.server.close()
       bridge.server.closeAllConnections?.()
@@ -76,11 +82,11 @@ async function getBridge(ctx) {
     const started = await startBridge(ctx, apiBase)
     bridge = { ...started, apiBase }
     return bridge
-  })().finally(() => {
-    starting = undefined
+  })()
+  starting = { apiBase, promise }
+  return promise.finally(() => {
+    if (starting?.promise === promise) starting = undefined
   })
-
-  return starting
 }
 
 export default Plugin.define({
@@ -94,6 +100,13 @@ export default Plugin.define({
     let token
 
     if (externalURL) {
+      try {
+        const parsed = new URL(externalURL)
+        if (parsed.protocol !== "https:" && !["127.0.0.1", "localhost", "::1", "[::1]"].includes(parsed.hostname))
+          console.warn("[commandcode-go] the Command Code key travels to this URL in clear text; use loopback or HTTPS")
+      } catch {
+        // A malformed url fails later at provider registration; only the warning is skipped here.
+      }
       token = process.env.COMMANDCODE_GO_BRIDGE_TOKEN || option(ctx, "token")
       if (!token) {
         console.warn("[commandcode-go] external bridge token is not set; provider disabled")

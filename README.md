@@ -149,6 +149,9 @@ No option is required. These exist for debugging and for the manual bridge:
 | `apiBase` | Upstream base URL, defaults to `https://api.commandcode.ai`. Useful for a mock. |
 | `url` | Forces the use of an **external** bridge instead of the internal one. |
 | `token` | External bridge token, used only with `url`. |
+| `apiKey` | Legacy fallback: Command Code key handed to the bridge when /connect has none. Prefer /connect. |
+
+Upgrading from 0.1.x: the key now comes from OpenCode's `/connect` credential store. The `apiKey` option is a fallback only; it still works when set, but prefer `/connect`.
 
 ## Manual mode — separate bridge
 
@@ -175,7 +178,7 @@ Then in `opencode.jsonc`:
 }
 ```
 
-The plugin token and the bridge token must match. In this mode, `plugin.ts` does not start an internal bridge. The Command Code key still comes from `/connect`; set `CMD_API_KEY` on the bridge only when you call the bridge directly (curl, another client).
+The plugin token and the bridge token must match. In this mode, `plugin.ts` does not start an internal bridge. The Command Code key still comes from `/connect`; set `CMD_API_KEY` on the bridge only when you call the bridge directly (curl, another client). Warning: OpenCode sends the real Command Code key as the bearer token to `url`; use loopback or HTTPS only.
 
 ## Bridge environment variables
 

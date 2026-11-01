@@ -1,6 +1,6 @@
 {
   "name": "opencode-commandcode-go",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Unofficial OpenCode provider for Command Code's Go plan, with an in-process OpenAI-compatible bridge.",
   "type": "module",
   "exports": {

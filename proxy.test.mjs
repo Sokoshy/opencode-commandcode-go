@@ -245,7 +245,7 @@ test("bridges an OpenAI stream to the generate endpoint", async (t) => {
   assert.match(text, /data: \[DONE\]/)
 })
 
-test("rejects a request without the bridge token", async (t) => {
+test("rejects a request without a valid bridge token", async (t) => {
   const bridge = createServer({
     apiKey: "cc-key",
     bridgeToken: "bridge-token",
@@ -260,7 +260,11 @@ test("rejects a request without the bridge token", async (t) => {
 
   const response = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      authorization: "Bearer user-key",
+      "x-bridge-token": "wrong",
+      "content-type": "application/json",
+    },
     body: JSON.stringify({ model: "m", messages: [] }),
   })
   assert.equal(response.status, 401)

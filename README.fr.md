@@ -149,6 +149,9 @@ Aucune option n'est requise. Celles-ci servent au débogage et au pont manuel :
 | `apiBase` | Base amont, par défaut `https://api.commandcode.ai`. Utile pour un mock. |
 | `url` | Force l'usage d'un pont **externe** au lieu du pont interne. |
 | `token` | Token du pont externe, utilisé seulement avec `url`. |
+| `apiKey` | Repli historique : clé Command Code transmise au pont quand /connect n'en fournit pas. Préférer /connect. |
+
+Migration depuis 0.1.x : la clé vient désormais du magasin d'identifiants d'OpenCode via `/connect`. L'option `apiKey` ne sert que de repli ; elle fonctionne encore si elle est définie, mais privilégiez `/connect`.
 
 ## Mode manuel — pont séparé
 
@@ -175,7 +178,7 @@ Puis dans `opencode.jsonc` :
 }
 ```
 
-Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plugin.ts` ne démarre pas de pont interne. La clé Command Code vient toujours de `/connect` ; mets `CMD_API_KEY` sur le pont seulement si tu l'appelles directement (curl, autre client).
+Le token du plugin et celui du pont doivent être identiques. Dans ce mode, `plugin.ts` ne démarre pas de pont interne. La clé Command Code vient toujours de `/connect` ; mets `CMD_API_KEY` sur le pont seulement si tu l'appelles directement (curl, autre client). Attention : OpenCode envoie la vraie clé Command Code comme bearer token vers `url` ; n'utilise ce mode qu'en loopback ou en HTTPS.
 
 ## Variables du pont
 
